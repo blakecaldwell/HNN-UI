@@ -2,29 +2,29 @@
 hnn_geppetto.py
 Initialise HNN Geppetto, this class contains methods to connect HNN with the Geppetto based UI
 """
+import copy
 import importlib
 import json
 import logging
 import os
 import sys
 from contextlib import redirect_stdout
+from pprint import pprint
 
+import holoviews as hv
+from bokeh.embed import file_html
+from bokeh.layouts import layout
+from bokeh.plotting import figure
+from bokeh.resources import CDN
 from jupyter_geppetto import jupyter_geppetto, synchronization, utils
 from netpyne import sim
 from pygeppetto.model.model_serializer import GeppettoModelSerializer
 
+import hnn_ui.holoviews_plots as holoviews_plots
 import hnn_ui.model_utils as model_utils
-from hnn_ui.cellParams import *
 from hnn_ui.constants import CANVAS_KEYS, PROXIMAL, DISTAL
 from hnn_ui.netParams import *
 from hnn_ui.netpyne_model_interpreter import NetPyNEModelInterpreter
-import hnn_ui.holoviews_plots as holoviews_plots
-
-from bokeh.plotting import figure
-import holoviews as hv
-from bokeh.resources import CDN
-from bokeh.embed import file_html
-from bokeh.layouts import layout
 
 hv.extension('bokeh')
 
@@ -36,6 +36,7 @@ class HNNGeppetto:
         self.cfg = self.load_cfg()
         # use to decide wheter or not to update the canvas in the front end
         self.last_cfg_snapshot = self.cfg.__dict__.copy()
+        self.sim_history = []
         synchronization.startSynchronization(self.__dict__)
         logging.debug("Initializing the original model")
 
@@ -81,6 +82,7 @@ class HNNGeppetto:
             sim.setupRecording() 
             sim.simulate()
             sim.saveData()
+            self.sim_history.append(sim.allSimData.copy()) ##shallow copy
         return sim
 
     def getEvokedInputs(self):
@@ -125,25 +127,37 @@ class HNNGeppetto:
         except:
             return ""
 
-        #return json.dumps(spkid)
         fig.scatter(spkt, spkid, size=1, legend="all spikes")
         plot_layout = layout(fig, sizing_mode='scale_both')
         html = file_html(plot_layout, CDN, "dipole")
         return html
 
-    def get_traces_plot(self):
-        plot_html = holoviews_plots.get_traces()
-        return plot_html
+    def get_traces_plot(self, simulation):
+        with redirect_stdout(sys.__stdout__):
+            print("Getting data from simulation " + str(simulation))
+            pprint(dir(self.sim_history[simulation]))
+        TOOLS = "pan,wheel_zoom,box_zoom,reset,save,box_select"
+        fig = figure(title="HNN Traces Plot", tools=TOOLS)
+        try:
+            spkt = self.sim_history[simulation]['spkt']
+            spkid = self.sim_history[simulation]['spkid']
+        except:
+            return ""
 
-    def get_psd_plot(self):
+        fig.scatter(spkt, spkid, size=1, legend="all spikes", color="blue")
+        plot_layout = layout(fig, sizing_mode='scale_both')
+        html = file_html(plot_layout, CDN, "traces")
+        return html
+
+    def get_psd_plot(self, simulation):
         plot_html = holoviews_plots.get_psd()
         return plot_html
 
-    def get_raster_plot(self):
+    def get_raster_plot(self, simulation):
         plot_html = holoviews_plots.get_raster()
         return plot_html
 
-    def get_spectrogram_plot(self):
+    def get_spectrogram_plot(self, simulation):
         plot_html = holoviews_plots.get_spectrogram()
         return plot_html
 
@@ -160,6 +174,10 @@ class HNNGeppetto:
                 if not filterFiles or os.path.isfile(ff) and ff.endswith(filterFiles):
                     dir_list.append({'title': f, 'path': ff})
         return dir_list
+
+
+    def get_simulations(self):
+        return len(self.sim_history)
 
 
 logging.info("Initialising HNN UI")
