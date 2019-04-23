@@ -2,7 +2,6 @@
 hnn_geppetto.py
 Initialise HNN Geppetto, this class contains methods to connect HNN with the Geppetto based UI
 """
-import copy
 import importlib
 import json
 import logging
@@ -23,8 +22,10 @@ from pygeppetto.model.model_serializer import GeppettoModelSerializer
 import hnn_ui.holoviews_plots as holoviews_plots
 import hnn_ui.model_utils as model_utils
 from hnn_ui.constants import CANVAS_KEYS, PROXIMAL, DISTAL
-from hnn_ui.netParams import *
+from hnn_ui.netParams import set_netParams
 from hnn_ui.netpyne_model_interpreter import NetPyNEModelInterpreter
+from hnn_ui.cellParams import set_cellParams
+
 
 hv.extension('bokeh')
 
@@ -69,8 +70,8 @@ class HNNGeppetto:
 
     def instantiateModel(self):
         with redirect_stdout(sys.__stdout__):
-            netParams_snapshot = netParams
-            netParams_snapshot.cellParams = cellParams
+            netParams_snapshot = set_netParams(self.cfg)
+            netParams_snapshot.cellParams = set_cellParams(self.cfg)
             sim.create(simConfig=self.cfg, netParams=netParams_snapshot)
             sim.gatherData(gatherLFP=False)
             self.last_cfg_snapshot = self.cfg.__dict__.copy()
